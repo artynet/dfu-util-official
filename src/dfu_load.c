@@ -41,7 +41,7 @@
 #include "quirks.h"
 
 int dfuload_do_upload(struct dfu_if *dif, int xfer_size,
-    int expected_size, int fd)
+    int expected_size, int start_position, int fd)
 {
 	int total_bytes = 0;
 	unsigned short transaction = 0;
@@ -54,6 +54,11 @@ int dfuload_do_upload(struct dfu_if *dif, int xfer_size,
 
 	while (1) {
 		int rc;
+
+		if (start_position > 0) {
+		    transaction = start_position/xfer_size;
+		}
+
 		dfu_progress_bar("Upload", total_bytes, expected_size);
 		rc = dfu_upload(dif->dev_handle, dif->interface,
 		    xfer_size, transaction++, buf);
@@ -69,7 +74,7 @@ int dfuload_do_upload(struct dfu_if *dif, int xfer_size,
 		if (total_bytes < 0)
 			errx(EX_SOFTWARE, "\nReceived too many bytes (wraparound)");
 
-		if (rc < xfer_size) {
+		if (rc < xfer_size || start_position > 0) {
 			/* last block, return */
 			ret = 0;
 			break;
