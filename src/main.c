@@ -180,6 +180,7 @@ static void help(void)
 		"  -Z --upload-size <bytes>\tSpecify the expected upload size in bytes\n"
 		"  -D --download <file>\t\tWrite firmware from <file> into device\n"
 		"  -R --reset\t\t\tIssue USB Reset signalling once we're finished\n"
+		"  -K --start-position\t\tSet switch for upload offset\n"
 		"  -r --reset-stm32\t\tFollow STM32 DFU reset procedures to start firmware\n"
 		"  -O --download-reset <file>\tDownload firmware to MCU and reset\n"
 		"  -f --vector-address <address>\tSpecify custom vector address for reset\n"
@@ -219,6 +220,7 @@ static struct option opts[] = {
 	{ "transfer-size", 1, 0, 't' },
 	{ "upload", 1, 0, 'U' },
 	{ "upload-size", 1, 0, 'Z' },
+	{ "start-position", 1, 0, 'K' },
 	{ "download", 1, 0, 'D' },
 	{ "reset", 0, 0, 'R' },
 	{ "reset-stm32", 0, 0, 'r' },
@@ -257,7 +259,7 @@ int main(int argc, char **argv)
 
 	while (1) {
 		int c, option_index = 0;
-		c = getopt_long(argc, argv, "hVvleE:d:p:c:i:a:S:t:U:D:Rs:Z:w:K:r:O:f", opts,
+		c = getopt_long(argc, argv, "hVvleE:d:p:c:i:a:S:t:U:D:Rs:Z:w:K:r:O:f:", opts,
 				&option_index);
 		if (c == -1)
 			break;
@@ -678,6 +680,7 @@ status_again:
 		close(fd);
 		break;
 
+	case MODE_DOWNLOAD:
 	case MODE_DOWNLOAD_RESET:
 		if (((file.idVendor  != 0xffff && file.idVendor  != runtime_vendor) ||
 		     (file.idProduct != 0xffff && file.idProduct != runtime_product)) &&
