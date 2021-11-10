@@ -302,7 +302,7 @@ static int dfuse_dnload_chunk(struct dfu_if *dif, unsigned char *data, int size,
 	do {
 		ret = dfu_get_status(dif, &dst);
 		if (ret < 0) {
-			errx(EX_IOERR, "Error during download get_status");
+			// errx(EX_IOERR, "Error during download get_status");
 			return ret;
 		}
 		milli_sleep(dst.bwPollTimeout);

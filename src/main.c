@@ -728,7 +728,7 @@ status_again:
 		    ret = dfuload_do_upload(dfu_root, transfer_size, expected_size, fd);
 		}
 		close(fd);
-		if (ret < 0)
+		if (ret > 0)
 			ret = EX_IOERR;
 		else
 			ret = EX_OK;
