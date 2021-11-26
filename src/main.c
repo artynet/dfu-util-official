@@ -349,6 +349,7 @@ int main(int argc, char **argv)
 			break;
 		case 'r':
 			mode = MODE_RESET_STM32;
+			final_reset = 1;
 			break;
 		case 'O':
 			mode = MODE_DOWNLOAD_RESET;
@@ -797,23 +798,16 @@ status_again:
 		}
 		struct dfu_status dest_status;
 		rr = dfu_get_status(dfu_root, &dest_status );
+		if( rr < 0 ) {
+			printf("Error: Unable to get status: %d\n", rr);
+			exit(1);
+		}
 
-		while( rr != -4 ) {
-				rr = dfu_get_status( dfu_root, &dest_status );
-				milli_sleep(1 * 1000);
-				printf("Waiting....%d\n");
-			}
-
-		printf("Successfully reset STM32\n");
-
-		// since we can't detect the STATE_DFU_MANIFEST from the bootloader itself
-		// we have temporarily suppressed this part
-		//
-		// if( dest_status.bState != STATE_DFU_MANIFEST) {
-		// 	printf("Error: Expected STM32 to be in dfuMANIFEST state after get-status command!\n");
-		// } else {
-		// 	printf("Successfully reset STM32\n");
-		// }
+		if( dest_status.bState != STATE_DFU_MANIFEST) {
+			printf("Error: Expected STM32 to be in dfuMANIFEST state after get-status command!\n");
+		} else {
+			printf("Successfully reset STM32\n");
+		}
 		break;
 	case MODE_DETACH:
 		ret = dfu_detach(dfu_root->dev_handle, dfu_root->interface, 1000);
