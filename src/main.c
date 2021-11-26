@@ -190,6 +190,7 @@ static void help(void)
 		"  -r --reset-stm32\t\tFollow STM32 DFU reset procedures to start firmware\n"
 		"  -O --download-reset <file>\tDownload firmware to MCU and reset\n"
 		"  -f --vector-address <address>\tSpecify custom vector address for reset\n"
+		"  -K --start-position <offset>\tSwitch for upload offset \n"
 		"  -w --wait\t\t\tWait for device to appear\n"
 		"  -s --dfuse-address address<:...>\tST DfuSe mode string, specifying target\n"
 		"\t\t\t\taddress for raw file download or upload (not\n"
@@ -238,6 +239,7 @@ static struct option opts[] = {
 	{ "download-reset", 1, 0, 'O' },
 	{ "vector-address", 1, 0, 'f' },
 	{ "dfuse-address", 1, 0, 's' },
+	{ "start-position", 1, 0, 'K' },
 	{ "devnum",1, 0, 'n' },
 	{ "wait", 1, 0, 'w' },
 	{ 0, 0, 0, 0 }
@@ -246,6 +248,7 @@ static struct option opts[] = {
 int main(int argc, char **argv)
 {
 	int expected_size = 0;
+	int start_position = 0;
 	unsigned int transfer_size = 0;
 	enum mode mode = MODE_NONE;
 	struct dfu_status status;
@@ -273,7 +276,7 @@ int main(int argc, char **argv)
 
 	while (1) {
 		int c, option_index = 0;
-		c = getopt_long(argc, argv, "hVvleE:d:p:c:i:a:S:t:U:D:Rs:Z:wn:rO:f:", opts,
+		c = getopt_long(argc, argv, "hVvleE:d:p:c:i:a:S:t:U:D:Rs:Z:wn:rO:f:K:", opts,
 				&option_index);
 		if (c == -1)
 			break;
@@ -339,6 +342,9 @@ int main(int argc, char **argv)
 			break;
 		case 'Z':
 			expected_size = parse_number("upload-size", optarg);
+			break;
+		case 'K':
+			start_position = parse_number("start-position", optarg);
 			break;
 		case 'D':
 			mode = MODE_DOWNLOAD;
@@ -745,7 +751,7 @@ status_again:
 		if (dfuse_device || dfuse_options) {
 		    ret = dfuse_do_upload(dfu_root, transfer_size, fd, dfuse_options);
 		} else {
-		    ret = dfuload_do_upload(dfu_root, transfer_size, expected_size, fd);
+		    ret = dfuload_do_upload(dfu_root, transfer_size, expected_size, start_position, fd);
 		}
 		close(fd);
 		if (ret < 0)
