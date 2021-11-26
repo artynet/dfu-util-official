@@ -25,10 +25,14 @@
 
 enum dfuse_command { SET_ADDRESS, ERASE_PAGE, MASS_ERASE, READ_UNPROTECT };
 
+int dfuse_special_command(struct dfu_if *dif, unsigned int address,
+			  enum dfuse_command command);
 int dfuse_do_upload(struct dfu_if *dif, int xfer_size, int fd,
 		    const char *dfuse_options);
 int dfuse_do_dnload(struct dfu_if *dif, int xfer_size, struct dfu_file *file,
 		    const char *dfuse_options);
 int dfuse_multiple_alt(struct dfu_if *dfu_root);
+int dfuse_download(struct dfu_if *dif, const unsigned short length,
+           unsigned char *data, unsigned short transaction);
 
 #endif /* DFUSE_H */

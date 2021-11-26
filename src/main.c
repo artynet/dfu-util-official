@@ -187,6 +187,9 @@ static void help(void)
 		"  -Z --upload-size <bytes>\tSpecify the expected upload size in bytes\n"
 		"  -D --download <file>\t\tWrite firmware from <file> into device\n"
 		"  -R --reset\t\t\tIssue USB Reset signalling once we're finished\n"
+		"  -r --reset-stm32\t\tFollow STM32 DFU reset procedures to start firmware\n"
+		"  -O --download-reset <file>\tDownload firmware to MCU and reset\n"
+		"  -f --vector-address <address>\tSpecify custom vector address for reset\n"
 		"  -w --wait\t\t\tWait for device to appear\n"
 		"  -s --dfuse-address address<:...>\tST DfuSe mode string, specifying target\n"
 		"\t\t\t\taddress for raw file download or upload (not\n"
@@ -231,6 +234,9 @@ static struct option opts[] = {
 	{ "upload-size", 1, 0, 'Z' },
 	{ "download", 1, 0, 'D' },
 	{ "reset", 0, 0, 'R' },
+	{ "reset-stm32", 0, 0, 'r' },
+	{ "download-reset", 1, 0, 'O' },
+	{ "vector-address", 1, 0, 'f' },
 	{ "dfuse-address", 1, 0, 's' },
 	{ "devnum",1, 0, 'n' },
 	{ "wait", 1, 0, 'w' },
@@ -249,9 +255,13 @@ int main(int argc, char **argv)
 	int final_reset = 0;
 	int wait_device = 0;
 	int ret;
+	int set_ret;
+	int dret;
+	int rr;
 	int dfuse_device = 0;
 	int fd;
 	const char *dfuse_options = NULL;
+	int vector_address = 0x08000000;
 	int detach_delay = 5;
 	uint16_t runtime_vendor;
 	uint16_t runtime_product;
@@ -263,7 +273,7 @@ int main(int argc, char **argv)
 
 	while (1) {
 		int c, option_index = 0;
-		c = getopt_long(argc, argv, "hVvleE:d:p:c:i:a:S:t:U:D:Rs:Z:wn:", opts,
+		c = getopt_long(argc, argv, "hVvleE:d:p:c:i:a:S:t:U:D:Rs:Z:wn:r:O:f:", opts,
 				&option_index);
 		if (c == -1)
 			break;
@@ -337,6 +347,16 @@ int main(int argc, char **argv)
 		case 'R':
 			final_reset = 1;
 			break;
+		case 'r':
+			mode = MODE_RESET_STM32;
+			break;
+		case 'O':
+			mode = MODE_DOWNLOAD_RESET;
+			file.name = optarg;
+			break;
+		case 'f':
+			vector_address = parse_number("vector-address", optarg);
+			break;
 		case 's':
 			dfuse_options = optarg;
 			break;
@@ -372,7 +392,7 @@ int main(int argc, char **argv)
 #endif
 
 	if (mode == MODE_NONE && !dfuse_options) {
-		fprintf(stderr, "You need to specify one of -D or -U\n");
+		fprintf(stderr, "You need to specify one of -D or -O or -U\n");
 		help();
 		exit(EX_USAGE);
 	}
@@ -382,7 +402,7 @@ int main(int argc, char **argv)
 		match_config_index = -1;
 	}
 
-	if (mode == MODE_DOWNLOAD) {
+	if (mode == MODE_DOWNLOAD || mode == MODE_DOWNLOAD_RESET) {
 		dfu_load_file(&file, MAYBE_SUFFIX, MAYBE_PREFIX);
 		/* If the user didn't specify product and/or vendor IDs to match,
 		 * use any IDs from the file suffix for device matching */
@@ -734,7 +754,7 @@ status_again:
 			ret = EX_OK;
 		break;
 
-	case MODE_DOWNLOAD:
+	case MODE_DOWNLOAD_RESET:
 		if (((file.idVendor  != 0xffff && file.idVendor  != runtime_vendor) ||
 		     (file.idProduct != 0xffff && file.idProduct != runtime_product)) &&
 		    ((file.idVendor  != 0xffff && file.idVendor  != dfu_root->vendor) ||
@@ -754,6 +774,46 @@ status_again:
 			ret = EX_IOERR;
 		else
 			ret = EX_OK;
+		if (mode != MODE_DOWNLOAD_RESET) {
+			break;
+		}
+		//fallthrough (no break) is intentional for MODE_DOWNLOAD_RESET
+	case MODE_RESET_STM32:
+		//ST Application Note 3156 Documents how to reset an STM32 out of DFU mode and into firmware mode
+		//Basicly, send the target vector reset address, then a zero-length download command, then by a get status command.
+
+		printf("Resetting STM32, starting firmware at address 0x08000000...\n");
+		set_ret = dfuse_special_command(dfu_root, vector_address, SET_ADDRESS);
+		if( set_ret < 0 ) {
+			printf("Error: Unable to set start address for reseting\n");
+			exit(1);
+		}
+
+		dret = dfuse_download(dfu_root, 0, NULL, 2);
+
+		if( dret < 0 ) {
+			printf("Error: Unable to initiate zero-length download\n");
+			exit(1);
+		}
+		struct dfu_status dest_status;
+		rr = dfu_get_status(dfu_root, &dest_status );
+
+		while( rr != -4 ) {
+				rr = dfu_get_status( dfu_root, &dest_status );
+				milli_sleep(1 * 1000);
+				printf("Waiting....%d\n");
+			}
+
+		printf("Successfully reset STM32\n");
+
+		// since we can't detect the STATE_DFU_MANIFEST from the bootloader itself
+		// we have temporarily suppressed this part
+		//
+		// if( dest_status.bState != STATE_DFU_MANIFEST) {
+		// 	printf("Error: Expected STM32 to be in dfuMANIFEST state after get-status command!\n");
+		// } else {
+		// 	printf("Successfully reset STM32\n");
+		// }
 		break;
 	case MODE_DETACH:
 		ret = dfu_detach(dfu_root->dev_handle, dfu_root->interface, 1000);
